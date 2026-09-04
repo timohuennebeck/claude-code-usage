@@ -4,7 +4,7 @@ A macOS menu bar item showing how much of your Claude Code rate limit is used an
 
 - Bar and percent turn amber at 60% and red at 85%.
 - Two dots show which window is displayed. **Hover** swaps the percent for the window label ("5h"/"7d") without shifting the layout. **Left click** flips between 5h and 7d.
-- **Right click** shows both windows with reset times, Refresh, and Quit. The tooltip lists the same plus the weekly per-model usage.
+- **Right click** shows both windows with reset times, Refresh, and Quit. plus the weekly per-model usage.
 - Refreshes every minute and after wake.
 
 It reads the OAuth session Claude Code already stores in the macOS Keychain (`Claude Code-credentials`), falling back to `~/.claude/.credentials.json`. Nothing is written; if the session has expired, run `claude` once to sign in again.

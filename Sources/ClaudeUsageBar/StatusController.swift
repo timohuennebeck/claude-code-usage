@@ -64,16 +64,6 @@ final class StatusController: NSResponder {
             state = .loading(window: window)
         }
         statusItem.button?.image = StatusItemRenderer.render(state, hovered: hovered)
-        statusItem.button?.toolTip = tooltip()
-    }
-
-    private func tooltip() -> String {
-        guard let snapshot else { return lastError ?? "Loading Claude Code usage…" }
-        var lines = UsageWindow.allCases.map { describe($0, in: snapshot) }
-        for scoped in snapshot.scoped {
-            lines.append("\(scoped.label) (7d): \(UsageFormatting.percentText(scoped.limit.utilization)) used")
-        }
-        return lines.joined(separator: "\n")
     }
 
     private func describe(_ w: UsageWindow, in snapshot: UsageSnapshot) -> String {
@@ -108,6 +98,9 @@ final class StatusController: NSResponder {
                 item.representedObject = w.rawValue
                 item.state = w == window ? .on : .off
                 menu.addItem(item)
+            }
+            for scoped in snapshot.scoped {
+                menu.addItem(disabled("\(scoped.label) (7d): \(UsageFormatting.percentText(scoped.limit.utilization)) used"))
             }
             let f = DateFormatter(); f.timeStyle = .short
             menu.addItem(disabled("Updated \(f.string(from: snapshot.fetchedAt))"))
