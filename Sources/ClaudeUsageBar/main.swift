@@ -1,6 +1,20 @@
 import AppKit
 import ClaudeUsageCore
 
+// `ClaudeUsageBar --raw` prints the raw usage JSON.
+if CommandLine.arguments.contains("--raw") {
+    let semaphore = DispatchSemaphore(value: 0)
+    Task {
+        defer { semaphore.signal() }
+        do {
+            let data = try await UsageClient().fetchRaw(credentials: try CredentialsStore.load())
+            print(String(decoding: data, as: UTF8.self))
+        } catch { fputs("error: \(error.localizedDescription)\n", stderr); exit(1) }
+    }
+    semaphore.wait()
+    exit(0)
+}
+
 // `ClaudeUsageBar --check` prints the current usage to stdout and exits.
 if CommandLine.arguments.contains("--check") {
     let semaphore = DispatchSemaphore(value: 0)
@@ -34,12 +48,12 @@ if let i = CommandLine.arguments.firstIndex(of: "--render"), i + 1 < CommandLine
         ("5h-68", .usage(UsageLimit(utilization: 68, resetsAt: now.addingTimeInterval(1 * 3600 + 12 * 60)), window: .fiveHour, now: now)),
         ("5h-91", .usage(UsageLimit(utilization: 91, resetsAt: now.addingTimeInterval(24 * 60)), window: .fiveHour, now: now)),
         ("7d-66", .usage(UsageLimit(utilization: 66, resetsAt: now.addingTimeInterval(4 * 86400 + 4 * 3600)), window: .sevenDay, now: now)),
-        ("loading", .loading),
-        ("error", .error("offline")),
+        ("loading", .loading(window: .fiveHour)),
+        ("error", .error("offline", window: .fiveHour)),
     ]
-    NSAppearance.current = NSAppearance(named: .darkAqua)
-    for (name, state) in states {
-        let image = StatusItemRenderer.render(state)
+    let hoveredStates: [(String, StatusItemState)] = [("5h-19-hover", states[0].1), ("7d-66-hover", states[3].1)]
+    for (name, state) in states + hoveredStates {
+        let image = StatusItemRenderer.render(state, hovered: name.hasSuffix("-hover"))
         let size = image.size
         let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(size.width * 2), pixelsHigh: Int(size.height * 2),
                                    bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
@@ -53,7 +67,33 @@ if let i = CommandLine.arguments.firstIndex(of: "--render"), i + 1 < CommandLine
         NSGraphicsContext.restoreGraphicsState()
         try? rep.representation(using: .png, properties: [:])?.write(to: dir.appendingPathComponent("\(name).png"))
     }
-    print("rendered \(states.count) states to \(dir.path)")
+    let card = UsagePopoverView(frame: .zero)
+    card.appearance = NSAppearance(named: .darkAqua)
+    card.update(snapshot: UsageSnapshot(
+        fiveHour: UsageLimit(utilization: 46, resetsAt: now.addingTimeInterval(25 * 60)),
+        sevenDay: UsageLimit(utilization: 17, resetsAt: now.addingTimeInterval(5 * 86400)),
+        scoped: [ScopedLimit(label: "Fable", limit: UsageLimit(utilization: 23, resetsAt: now.addingTimeInterval(5 * 86400))),
+                 ScopedLimit(label: "Opus", limit: UsageLimit(utilization: 71, resetsAt: now.addingTimeInterval(5 * 86400)))],
+        fetchedAt: now), error: nil, plan: "max", now: now)
+    card.frame = NSRect(origin: .zero, size: card.fittingSize)
+    card.layoutSubtreeIfNeeded()
+    if CommandLine.arguments.contains("--debug-layout") {
+        func dump(_ v: NSView, _ depth: Int) {
+            print(String(repeating: "  ", count: depth) + "\(type(of: v)) \(v.frame) tamic=\(v.translatesAutoresizingMaskIntoConstraints)" + ((v as? NSTextField).map { " '\($0.stringValue)'" } ?? ""))
+            v.subviews.forEach { dump($0, depth + 1) }
+        }
+        dump(card, 0)
+    }
+    let backing = NSView(frame: card.frame)
+    backing.wantsLayer = true
+    backing.layer?.backgroundColor = NSColor(srgbRed: 30/255, green: 30/255, blue: 32/255, alpha: 1).cgColor
+    backing.appearance = NSAppearance(named: .darkAqua)
+    backing.addSubview(card)
+    if let rep = backing.bitmapImageRepForCachingDisplay(in: backing.bounds) {
+        backing.cacheDisplay(in: backing.bounds, to: rep)
+        try? rep.representation(using: .png, properties: [:])?.write(to: dir.appendingPathComponent("popover.png"))
+    }
+    print("rendered \(states.count) states + popover to \(dir.path)")
     exit(0)
 }
 

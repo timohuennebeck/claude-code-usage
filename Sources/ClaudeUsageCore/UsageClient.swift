@@ -25,6 +25,11 @@ public struct UsageClient {
     }
 
     public func fetch(credentials: ClaudeCredentials) async throws -> UsageSnapshot {
+        try UsageSnapshot.decode(try await fetchRaw(credentials: credentials))
+    }
+
+    /// Raw JSON body, for `--raw` and decoding.
+    public func fetchRaw(credentials: ClaudeCredentials) async throws -> Data {
         var req = URLRequest(url: Self.endpoint)
         req.httpMethod = "GET"
         req.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
@@ -42,7 +47,7 @@ public struct UsageClient {
         let code = (response as? HTTPURLResponse)?.statusCode ?? 0
         switch code {
         case 200..<300:
-            return try UsageSnapshot.decode(data)
+            return data
         case 401, 403:
             throw UsageClientError.unauthorized
         default:

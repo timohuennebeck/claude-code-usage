@@ -4,13 +4,15 @@ import ClaudeUsageCore
 /// What the menu bar item shows. Rendered to an NSImage so the status button handles
 /// clicks and appearance changes for us.
 enum StatusItemState {
-    case loading
+    case loading(window: UsageWindow)
     case usage(UsageLimit, window: UsageWindow, now: Date)
-    case error(String)
+    case error(String, window: UsageWindow)
 }
 
 enum StatusItemRenderer {
     // Layout in points, from the design (logo 13, bar 36×4, 12pt medium text, 4pt dots).
+    // While hovered, the percent swaps to the window label ("5h"/"7d") inside a slot
+    // sized to the wider of the two strings, so nothing shifts.
     private static let height: CGFloat = 22
     private static let logoSize: CGFloat = 13
     private static let barSize = CGSize(width: 36, height: 4)
@@ -26,10 +28,12 @@ enum StatusItemRenderer {
         return url.flatMap { NSImage(contentsOf: $0) }
     }()
 
-    static func render(_ state: StatusItemState) -> NSImage {
+    static func render(_ state: StatusItemState, hovered: Bool = false) -> NSImage {
         let pieces = pieces(for: state)
+        let slotWidth = max(pieces.percent.width, pieces.windowLabel.width)
+        let slotText = hovered ? pieces.windowLabel : pieces.percent
         var width: CGFloat = logoSize + gap + barSize.width + gap
-        width += pieces.percent.width + textGap + pieces.detail.width
+        width += slotWidth + textGap + pieces.detail.width
         width += gap + dotSize * 2 + dotGap
 
         let image = NSImage(size: NSSize(width: ceil(width), height: height), flipped: false) { rect in
@@ -57,9 +61,9 @@ enum StatusItemRenderer {
             }
             x += barSize.width + gap
 
-            // Percent and detail text.
-            pieces.percent.draw(at: NSPoint(x: x, y: midY - pieces.percent.height / 2))
-            x += pieces.percent.width + textGap
+            // Percent (or window label while hovered), right-aligned in a fixed slot, then detail.
+            slotText.draw(at: NSPoint(x: x + slotWidth - slotText.width, y: midY - slotText.height / 2))
+            x += slotWidth + textGap
             pieces.detail.draw(at: NSPoint(x: x, y: midY - pieces.detail.height / 2))
             x += pieces.detail.width + gap
 
@@ -81,27 +85,31 @@ enum StatusItemRenderer {
         let barColor: NSColor
         let percent: NSAttributedString
         let detail: NSAttributedString
-        let activeWindow: UsageWindow?
+        let windowLabel: NSAttributedString
+        let activeWindow: UsageWindow
     }
 
     private static func pieces(for state: StatusItemState) -> Pieces {
         switch state {
-        case .loading:
+        case .loading(let window):
             return Pieces(fill: 0, barColor: Palette.foreground,
                           percent: text("—", Palette.foreground),
                           detail: text("· loading", Palette.secondary),
-                          activeWindow: .fiveHour)
-        case .error:
+                          windowLabel: text(window.label, Palette.foreground),
+                          activeWindow: window)
+        case .error(_, let window):
             return Pieces(fill: 0, barColor: Palette.foreground,
                           percent: text("—", Palette.foreground),
                           detail: text("· offline", Palette.secondary),
-                          activeWindow: nil)
+                          windowLabel: text(window.label, Palette.foreground),
+                          activeWindow: window)
         case .usage(let limit, let window, let now):
             let remaining = limit.resetsAtOptional.map { UsageFormatting.remaining(until: $0, now: now, window: window) } ?? "?"
             return Pieces(fill: CGFloat(limit.utilization / 100),
                           barColor: Palette.bar(for: limit.severity),
                           percent: text(UsageFormatting.percentText(limit.utilization), Palette.percent(for: limit.severity)),
                           detail: text("· \(remaining)", Palette.secondary),
+                          windowLabel: text(window.label, Palette.foreground),
                           activeWindow: window)
         }
     }

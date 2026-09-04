@@ -55,14 +55,28 @@ public struct UsageLimit: Equatable {
     public var severity: UsageSeverity { UsageSeverity(utilization: utilization) }
 }
 
+/// A weekly limit scoped to one model or surface, e.g. "Fable".
+public struct ScopedLimit: Equatable {
+    public let label: String
+    public let limit: UsageLimit
+
+    public init(label: String, limit: UsageLimit) {
+        self.label = label
+        self.limit = limit
+    }
+}
+
 public struct UsageSnapshot: Equatable {
     public let fiveHour: UsageLimit
     public let sevenDay: UsageLimit
+    /// Per-model (or per-surface) weekly limits, in API order.
+    public let scoped: [ScopedLimit]
     public let fetchedAt: Date
 
-    public init(fiveHour: UsageLimit, sevenDay: UsageLimit, fetchedAt: Date = Date()) {
+    public init(fiveHour: UsageLimit, sevenDay: UsageLimit, scoped: [ScopedLimit] = [], fetchedAt: Date = Date()) {
         self.fiveHour = fiveHour
         self.sevenDay = sevenDay
+        self.scoped = scoped
         self.fetchedAt = fetchedAt
     }
 
@@ -80,8 +94,20 @@ public struct UsageSnapshot: Equatable {
             let utilization: Double?
             let resets_at: String?
         }
+        struct Scope: Decodable {
+            struct Model: Decodable { let display_name: String? }
+            let model: Model?
+            let surface: String?
+        }
+        struct Entry: Decodable {
+            let kind: String?
+            let percent: Double?
+            let resets_at: String?
+            let scope: Scope?
+        }
         let five_hour: Bucket?
         let seven_day: Bucket?
+        let limits: [Entry]?
     }
 
     public static func decode(_ data: Data, fetchedAt: Date = Date()) throws -> UsageSnapshot {
@@ -92,9 +118,18 @@ public struct UsageSnapshot: Equatable {
                 resetsAt: b?.resets_at.flatMap(ISO8601.parse)
             )
         }
+        let scoped: [ScopedLimit] = (wire.limits ?? []).compactMap { entry in
+            guard entry.kind == "weekly_scoped" else { return nil }
+            let label = entry.scope?.model?.display_name ?? entry.scope?.surface ?? "Other"
+            return ScopedLimit(
+                label: label,
+                limit: UsageLimit(utilization: entry.percent ?? 0, resetsAt: entry.resets_at.flatMap(ISO8601.parse))
+            )
+        }
         return UsageSnapshot(
             fiveHour: limit(wire.five_hour),
             sevenDay: limit(wire.seven_day),
+            scoped: scoped,
             fetchedAt: fetchedAt
         )
     }
