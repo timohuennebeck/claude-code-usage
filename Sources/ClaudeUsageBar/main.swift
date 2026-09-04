@@ -7,8 +7,12 @@ if CommandLine.arguments.contains("--raw") {
     Task {
         defer { semaphore.signal() }
         do {
-            let data = try await UsageClient().fetchRaw(credentials: try CredentialsStore.load())
-            print(String(decoding: data, as: UTF8.self))
+            let (data, headers) = try await UsageClient().fetchRawWithHeaders(credentials: try CredentialsStore.load())
+            if CommandLine.arguments.contains("--headers") {
+                for (k, v) in headers.sorted(by: { $0.key < $1.key }) where !["set-cookie"].contains(k) { print("\(k): \(v)") }
+            } else {
+                print(String(decoding: data, as: UTF8.self))
+            }
         } catch { fputs("error: \(error.localizedDescription)\n", stderr); exit(1) }
     }
     semaphore.wait()
