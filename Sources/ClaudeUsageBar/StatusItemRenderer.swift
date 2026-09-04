@@ -28,7 +28,17 @@ enum StatusItemRenderer {
         return url.flatMap { NSImage(contentsOf: $0) }
     }()
 
-    static func render(_ state: StatusItemState) -> NSImage {
+    /// `stale` dims the whole item to signal the numbers may be out of date.
+    static func render(_ state: StatusItemState, stale: Bool = false) -> NSImage {
+        let image = render(state)
+        guard stale else { return image }
+        return NSImage(size: image.size, flipped: false) { rect in
+            image.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 0.5)
+            return true
+        }
+    }
+
+    private static func render(_ state: StatusItemState) -> NSImage {
         let pieces = pieces(for: state)
         // Slots are sized to the wider of the two windows so flipping 5h/7d never shifts the layout.
         let (percentSlot, detailSlot) = slotWidths(for: state, current: pieces)

@@ -39,7 +39,7 @@ public enum UsageSeverity: Equatable {
     }
 }
 
-public struct UsageLimit: Equatable {
+public struct UsageLimit: Equatable, Codable {
     /// Percent used, 0...100.
     public let utilization: Double
     public let resetsAtOptional: Date?
@@ -56,7 +56,7 @@ public struct UsageLimit: Equatable {
 }
 
 /// A weekly limit scoped to one model or surface, e.g. "Fable".
-public struct ScopedLimit: Equatable {
+public struct ScopedLimit: Equatable, Codable {
     public let label: String
     public let limit: UsageLimit
 
@@ -66,7 +66,7 @@ public struct ScopedLimit: Equatable {
     }
 }
 
-public struct UsageSnapshot: Equatable {
+public struct UsageSnapshot: Equatable, Codable {
     public let fiveHour: UsageLimit
     public let sevenDay: UsageLimit
     /// Per-model (or per-surface) weekly limits, in API order.

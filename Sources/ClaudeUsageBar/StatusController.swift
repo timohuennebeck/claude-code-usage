@@ -6,15 +6,19 @@ import ClaudeUsageCore
 final class StatusController: NSObject {
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let client = UsageClient()
-    private let pollInterval: TimeInterval = 60
+    private static let cacheKey = "snapshot"
 
     private var window: UsageWindow = {
         UserDefaults.standard.string(forKey: "window").flatMap(UsageWindow.init(rawValue:)) ?? .fiveHour
     }()
-    private var snapshot: UsageSnapshot?
+    private var snapshot: UsageSnapshot? = {
+        UserDefaults.standard.data(forKey: cacheKey).flatMap { try? JSONDecoder().decode(UsageSnapshot.self, from: $0) }
+    }()
     private var plan: String?
     private var lastError: String?
-    private var timer: Timer?
+    private var consecutiveRateLimits = 0
+    private var fetchTimer: Timer?
+    private var tickTimer: Timer?
 
 
     override init() {
@@ -28,37 +32,58 @@ final class StatusController: NSObject {
         redraw()
         NSWorkspace.shared.notificationCenter.addObserver(
             self, selector: #selector(refresh), name: NSWorkspace.didWakeNotification, object: nil)
-        timer = Timer.scheduledTimer(withTimeInterval: pollInterval, repeats: true) { [weak self] _ in self?.refresh() }
-        timer?.tolerance = 5
+        // Countdown and staleness are computed locally, so redraw every minute regardless of fetches.
+        tickTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in self?.redraw() }
+        tickTimer?.tolerance = 5
         refresh()
     }
 
     // MARK: Data
 
     @objc private func refresh() {
+        fetchTimer?.invalidate()
         Task { @MainActor in
+            var retryAfter: TimeInterval?
             do {
                 let creds = try CredentialsStore.load()
                 plan = creds.subscriptionType
-                snapshot = try await client.fetch(credentials: creds)
+                let fresh = try await client.fetch(credentials: creds)
+                snapshot = fresh
                 lastError = nil
+                consecutiveRateLimits = 0
+                if let data = try? JSONEncoder().encode(fresh) {
+                    UserDefaults.standard.set(data, forKey: Self.cacheKey)
+                }
+            } catch let UsageClientError.rateLimited(after) {
+                consecutiveRateLimits += 1
+                retryAfter = after
+                lastError = UsageClientError.rateLimited(retryAfter: after).localizedDescription
             } catch {
                 lastError = error.localizedDescription
             }
             redraw()
+            scheduleNextFetch(retryAfter: retryAfter)
         }
+    }
+
+    private func scheduleNextFetch(retryAfter: TimeInterval?) {
+        let delay = RefreshPolicy.nextDelay(consecutiveRateLimits: consecutiveRateLimits, retryAfter: retryAfter)
+        fetchTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in self?.refresh() }
+        fetchTimer?.tolerance = 10
     }
 
     private func redraw() {
         let state: StatusItemState
+        var stale = false
         if let snapshot {
             state = .usage(snapshot, window: window, now: Date())
+            stale = RefreshPolicy.isStale(fetchedAt: snapshot.fetchedAt)
         } else if let lastError {
             state = .error(lastError, window: window)
         } else {
             state = .loading(window: window)
         }
-        statusItem.button?.image = StatusItemRenderer.render(state)
+        statusItem.button?.image = StatusItemRenderer.render(state, stale: stale)
     }
 
     private func describe(_ w: UsageWindow, in snapshot: UsageSnapshot) -> String {
@@ -94,6 +119,7 @@ final class StatusController: NSObject {
             }
             let f = DateFormatter(); f.timeStyle = .short
             menu.addItem(disabled("Updated \(f.string(from: snapshot.fetchedAt))"))
+            if let lastError { menu.addItem(disabled("Couldn't refresh: \(lastError)")) }
         } else {
             menu.addItem(disabled(lastError ?? "Loading…"))
         }

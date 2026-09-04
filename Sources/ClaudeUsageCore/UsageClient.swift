@@ -2,12 +2,14 @@ import Foundation
 
 public enum UsageClientError: LocalizedError {
     case unauthorized
+    case rateLimited(retryAfter: TimeInterval?)
     case http(Int, String)
     case transport(Error)
 
     public var errorDescription: String? {
         switch self {
         case .unauthorized: return "Claude Code session expired. Run `claude` to sign in again."
+        case .rateLimited: return "Rate limited by the usage API. Retrying more slowly."
         case .http(let code, let body): return "Usage API returned HTTP \(code): \(body.prefix(200))"
         case .transport(let e): return e.localizedDescription
         }
@@ -59,6 +61,8 @@ public struct UsageClient {
             return (data, headers)
         case 401, 403:
             throw UsageClientError.unauthorized
+        case 429:
+            throw UsageClientError.rateLimited(retryAfter: headers["retry-after"].flatMap(TimeInterval.init))
         default:
             throw UsageClientError.http(code, String(decoding: data, as: UTF8.self))
         }
