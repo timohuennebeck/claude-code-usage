@@ -67,33 +67,7 @@ if let i = CommandLine.arguments.firstIndex(of: "--render"), i + 1 < CommandLine
         NSGraphicsContext.restoreGraphicsState()
         try? rep.representation(using: .png, properties: [:])?.write(to: dir.appendingPathComponent("\(name).png"))
     }
-    let card = UsagePopoverView(frame: .zero)
-    card.appearance = NSAppearance(named: .darkAqua)
-    card.update(snapshot: UsageSnapshot(
-        fiveHour: UsageLimit(utilization: 46, resetsAt: now.addingTimeInterval(25 * 60)),
-        sevenDay: UsageLimit(utilization: 17, resetsAt: now.addingTimeInterval(5 * 86400)),
-        scoped: [ScopedLimit(label: "Fable", limit: UsageLimit(utilization: 23, resetsAt: now.addingTimeInterval(5 * 86400))),
-                 ScopedLimit(label: "Opus", limit: UsageLimit(utilization: 71, resetsAt: now.addingTimeInterval(5 * 86400)))],
-        fetchedAt: now), error: nil, plan: "max", now: now)
-    card.frame = NSRect(origin: .zero, size: card.fittingSize)
-    card.layoutSubtreeIfNeeded()
-    if CommandLine.arguments.contains("--debug-layout") {
-        func dump(_ v: NSView, _ depth: Int) {
-            print(String(repeating: "  ", count: depth) + "\(type(of: v)) \(v.frame) tamic=\(v.translatesAutoresizingMaskIntoConstraints)" + ((v as? NSTextField).map { " '\($0.stringValue)'" } ?? ""))
-            v.subviews.forEach { dump($0, depth + 1) }
-        }
-        dump(card, 0)
-    }
-    let backing = NSView(frame: card.frame)
-    backing.wantsLayer = true
-    backing.layer?.backgroundColor = NSColor(srgbRed: 30/255, green: 30/255, blue: 32/255, alpha: 1).cgColor
-    backing.appearance = NSAppearance(named: .darkAqua)
-    backing.addSubview(card)
-    if let rep = backing.bitmapImageRepForCachingDisplay(in: backing.bounds) {
-        backing.cacheDisplay(in: backing.bounds, to: rep)
-        try? rep.representation(using: .png, properties: [:])?.write(to: dir.appendingPathComponent("popover.png"))
-    }
-    print("rendered \(states.count) states + popover to \(dir.path)")
+    print("rendered \(states.count) states to \(dir.path)")
     exit(0)
 }
 

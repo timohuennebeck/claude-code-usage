@@ -2,7 +2,7 @@ import AppKit
 import ClaudeUsageCore
 
 /// Owns the NSStatusItem: polls usage, redraws the item, flips the window on click,
-/// shows a details menu on right click, and a hover card with the model breakdown.
+/// shows a details menu on right click, and swaps percent for the window label on hover.
 final class StatusController: NSResponder {
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let client = UsageClient()
@@ -16,11 +16,6 @@ final class StatusController: NSResponder {
     private var lastError: String?
     private var timer: Timer?
 
-    private let popover = NSPopover()
-    private let popoverView = UsagePopoverView(frame: .zero)
-    private var hoverOpen: DispatchWorkItem?
-    private var hoverClose: DispatchWorkItem?
-    private let hoverDelay: TimeInterval = 0.4
     private var hovered = false { didSet { if hovered != oldValue { redraw() } } }
 
     required init?(coder: NSCoder) { fatalError() }
@@ -34,13 +29,6 @@ final class StatusController: NSResponder {
         button.imagePosition = .imageOnly
         button.addTrackingArea(NSTrackingArea(
             rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self, userInfo: nil))
-
-        let vc = NSViewController()
-        vc.view = popoverView
-        popover.contentViewController = vc
-        popover.behavior = .transient
-        popover.animates = false
-        popover.appearance = NSAppearance(named: .darkAqua)
 
         redraw()
         NSWorkspace.shared.notificationCenter.addObserver(
@@ -76,60 +64,16 @@ final class StatusController: NSResponder {
             state = .loading(window: window)
         }
         statusItem.button?.image = StatusItemRenderer.render(state, hovered: hovered)
-        if popover.isShown { popoverView.update(snapshot: snapshot, error: lastError, plan: plan) }
+        statusItem.button?.toolTip = tooltip()
     }
 
-    // MARK: Hover card
-
-    override func mouseEntered(with event: NSEvent) {
-        hoverClose?.cancel()
-        if event.trackingArea?.owner as? NSView == nil, isOverItem() { hovered = true }
-        guard !popover.isShown, statusItem.menu == nil else { return }
-        let work = DispatchWorkItem { [weak self] in self?.showPopover() }
-        hoverOpen = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + hoverDelay, execute: work)
-    }
-
-    override func mouseExited(with event: NSEvent) {
-        hoverOpen?.cancel()
-        if !isOverItem() { hovered = false }
-        scheduleClose()
-    }
-
-    private func isOverItem() -> Bool {
-        guard let button = statusItem.button, let window = button.window else { return false }
-        return button.convert(button.bounds, to: nil).contains(window.convertPoint(fromScreen: NSEvent.mouseLocation))
-    }
-
-    private func showPopover() {
-        guard let button = statusItem.button, !popover.isShown else { return }
-        popoverView.update(snapshot: snapshot, error: lastError, plan: plan)
-        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-        // Close once the pointer has left both the item and the card.
-        popover.contentViewController?.view.window?.acceptsMouseMovedEvents = true
-        if let view = popover.contentViewController?.view, view.trackingAreas.isEmpty {
-            view.addTrackingArea(NSTrackingArea(
-                rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self, userInfo: nil))
+    private func tooltip() -> String {
+        guard let snapshot else { return lastError ?? "Loading Claude Code usage…" }
+        var lines = UsageWindow.allCases.map { describe($0, in: snapshot) }
+        for scoped in snapshot.scoped {
+            lines.append("\(scoped.label) (7d): \(UsageFormatting.percentText(scoped.limit.utilization)) used")
         }
-    }
-
-    private func scheduleClose() {
-        hoverClose?.cancel()
-        let work = DispatchWorkItem { [weak self] in
-            guard let self, self.popover.isShown else { return }
-            let mouse = NSEvent.mouseLocation
-            let overCard = self.popover.contentViewController?.view.window?.frame.contains(mouse) ?? false
-            let overItem = self.statusItem.button?.window?.frame.contains(mouse) ?? false
-            if !overCard && !overItem { self.popover.performClose(nil) }
-        }
-        hoverClose = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: work)
-    }
-
-    private func closePopover() {
-        hoverOpen?.cancel()
-        hoverClose?.cancel()
-        if popover.isShown { popover.performClose(nil) }
+        return lines.joined(separator: "\n")
     }
 
     private func describe(_ w: UsageWindow, in snapshot: UsageSnapshot) -> String {
@@ -138,10 +82,14 @@ final class StatusController: NSResponder {
         return "\(w.title): \(UsageFormatting.percentText(l.utilization)) used · resets in \(UsageFormatting.remaining(until: reset, window: w)) (\(UsageFormatting.resetClock(reset)))"
     }
 
+    // MARK: Hover
+
+    override func mouseEntered(with event: NSEvent) { hovered = true }
+    override func mouseExited(with event: NSEvent) { hovered = false }
+
     // MARK: Interaction
 
     @objc private func clicked(_ sender: Any?) {
-        closePopover()
         if NSApp.currentEvent?.type == .rightMouseUp {
             showMenu()
         } else {

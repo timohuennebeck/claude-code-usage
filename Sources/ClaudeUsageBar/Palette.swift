@@ -10,8 +10,6 @@ enum Palette {
     /// Reset countdown: same weight as the percent, so it stays readable on busy wallpapers.
     static let secondary = foreground
     static let inactiveDot = foreground.withAlphaComponent(0.4)
-    /// Popover captions and footer.
-    static let muted = foreground.withAlphaComponent(0.6)
     static let track = foreground.withAlphaComponent(0.3)
     static let amber = NSColor(srgbRed: 1.0, green: 0xB0 / 255, blue: 0x2B / 255, alpha: 1)
     static let red = NSColor(srgbRed: 1.0, green: 0x5A / 255, blue: 0x4F / 255, alpha: 1)

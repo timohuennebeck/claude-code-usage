@@ -4,8 +4,7 @@ A macOS menu bar item showing how much of your Claude Code rate limit is used an
 
 - Bar and percent turn amber at 60% and red at 85%.
 - Two dots show which window is displayed. **Hover** swaps the percent for the window label ("5h"/"7d") without shifting the layout. **Left click** flips between 5h and 7d.
-- **Hover** for a moment to open a card with both windows, the weekly per-model breakdown, and the plan.
-- **Right click** shows both windows with reset times, Refresh, and Quit.
+- **Right click** shows both windows with reset times, Refresh, and Quit. The tooltip lists the same plus the weekly per-model usage.
 - Refreshes every minute and after wake.
 
 It reads the OAuth session Claude Code already stores in the macOS Keychain (`Claude Code-credentials`), falling back to `~/.claude/.credentials.json`. Nothing is written; if the session has expired, run `claude` once to sign in again.
@@ -25,5 +24,5 @@ Start at login: System Settings → General → Login Items → add `ClaudeUsage
 swift test                      # formatting, thresholds, decoding
 swift run ClaudeUsageBar --check   # print current usage to the terminal
 swift run ClaudeUsageBar --raw     # raw usage API JSON
-swift run ClaudeUsageBar --render out/   # PNGs of the item states and hover card
+swift run ClaudeUsageBar --render out/   # PNGs of the item states
 ```
