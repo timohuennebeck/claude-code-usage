@@ -3,7 +3,7 @@
 A macOS menu bar item showing how much of your Claude Code rate limit is used and when it resets, for both the 5-hour and 7-day windows.
 
 - Bar and percent turn amber at 60% and red at 85%.
-- Two dots show which window is displayed. **Hover** swaps the percent for the window label ("5h"/"7d") without shifting the layout. **Left click** flips between 5h and 7d.
+- Two dots show which window is displayed: left is 5h, right is 7d, and the active one is bigger. **Left click** flips between them.
 - **Right click** shows both windows with reset times, Refresh, and Quit. plus the weekly per-model usage.
 - Refreshes every minute and after wake.
 

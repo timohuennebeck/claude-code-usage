@@ -51,9 +51,9 @@ if let i = CommandLine.arguments.firstIndex(of: "--render"), i + 1 < CommandLine
         ("loading", .loading(window: .fiveHour)),
         ("error", .error("offline", window: .fiveHour)),
     ]
-    let hoveredStates: [(String, StatusItemState)] = [("5h-19-hover", states[0].1), ("7d-66-hover", states[3].1)]
-    for (name, state) in states + hoveredStates {
-        let image = StatusItemRenderer.render(state, hovered: name.hasSuffix("-hover"))
+    for (name, state) in states {
+        var image = StatusItemRenderer.render(state)
+        NSAppearance(named: .darkAqua)?.performAsCurrentDrawingAppearance { image = StatusItemRenderer.render(state) }
         let size = image.size
         let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(size.width * 2), pixelsHigh: Int(size.height * 2),
                                    bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
@@ -63,7 +63,7 @@ if let i = CommandLine.arguments.firstIndex(of: "--render"), i + 1 < CommandLine
         NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
         NSColor(srgbRed: 10/255, green: 10/255, blue: 11/255, alpha: 1).setFill()
         NSRect(origin: .zero, size: size).fill()
-        image.draw(in: NSRect(origin: .zero, size: size))
+        NSAppearance(named: .darkAqua)?.performAsCurrentDrawingAppearance { image.draw(in: NSRect(origin: .zero, size: size)) }
         NSGraphicsContext.restoreGraphicsState()
         try? rep.representation(using: .png, properties: [:])?.write(to: dir.appendingPathComponent("\(name).png"))
     }

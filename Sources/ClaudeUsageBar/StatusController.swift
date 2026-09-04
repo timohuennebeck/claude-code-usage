@@ -2,8 +2,8 @@ import AppKit
 import ClaudeUsageCore
 
 /// Owns the NSStatusItem: polls usage, redraws the item, flips the window on click,
-/// shows a details menu on right click, and swaps percent for the window label on hover.
-final class StatusController: NSResponder {
+/// and shows a details menu on right click.
+final class StatusController: NSObject {
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let client = UsageClient()
     private let pollInterval: TimeInterval = 60
@@ -16,9 +16,6 @@ final class StatusController: NSResponder {
     private var lastError: String?
     private var timer: Timer?
 
-    private var hovered = false { didSet { if hovered != oldValue { redraw() } } }
-
-    required init?(coder: NSCoder) { fatalError() }
 
     override init() {
         super.init()
@@ -27,8 +24,6 @@ final class StatusController: NSResponder {
         button.action = #selector(clicked(_:))
         button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         button.imagePosition = .imageOnly
-        button.addTrackingArea(NSTrackingArea(
-            rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self, userInfo: nil))
 
         redraw()
         NSWorkspace.shared.notificationCenter.addObserver(
@@ -63,7 +58,7 @@ final class StatusController: NSResponder {
         } else {
             state = .loading(window: window)
         }
-        statusItem.button?.image = StatusItemRenderer.render(state, hovered: hovered)
+        statusItem.button?.image = StatusItemRenderer.render(state)
     }
 
     private func describe(_ w: UsageWindow, in snapshot: UsageSnapshot) -> String {
@@ -71,11 +66,6 @@ final class StatusController: NSResponder {
         guard let reset = l.resetsAtOptional else { return "\(w.title): \(UsageFormatting.percentText(l.utilization)) used" }
         return "\(w.title): \(UsageFormatting.percentText(l.utilization)) used · resets in \(UsageFormatting.remaining(until: reset, window: w)) (\(UsageFormatting.resetClock(reset)))"
     }
-
-    // MARK: Hover
-
-    override func mouseEntered(with event: NSEvent) { hovered = true }
-    override func mouseExited(with event: NSEvent) { hovered = false }
 
     // MARK: Interaction
 

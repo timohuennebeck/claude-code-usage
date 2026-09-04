@@ -10,13 +10,13 @@ enum StatusItemState {
 }
 
 enum StatusItemRenderer {
-    // Layout in points, from the design (logo 13, bar 36×4, 12pt medium text, 4pt dots).
-    // While hovered, the percent swaps to the window label ("5h"/"7d") inside a slot
-    // sized to the wider of the two strings, so nothing shifts.
+    // Layout in points, from the design (logo 13, bar 36×4, 12pt medium text).
+    // Window dots: the active one is larger and full-strength so it reads at a glance.
     private static let height: CGFloat = 22
     private static let logoSize: CGFloat = 13
     private static let barSize = CGSize(width: 36, height: 4)
-    private static let dotSize: CGFloat = 4
+    private static let activeDotSize: CGFloat = 6
+    private static let inactiveDotSize: CGFloat = 4
     private static let dotGap: CGFloat = 3
     private static let gap: CGFloat = 7
     private static let textGap: CGFloat = 4
@@ -28,13 +28,11 @@ enum StatusItemRenderer {
         return url.flatMap { NSImage(contentsOf: $0) }
     }()
 
-    static func render(_ state: StatusItemState, hovered: Bool = false) -> NSImage {
+    static func render(_ state: StatusItemState) -> NSImage {
         let pieces = pieces(for: state)
-        let slotWidth = max(pieces.percent.width, pieces.windowLabel.width)
-        let slotText = hovered ? pieces.windowLabel : pieces.percent
         var width: CGFloat = logoSize + gap + barSize.width + gap
-        width += slotWidth + textGap + pieces.detail.width
-        width += gap + dotSize * 2 + dotGap
+        width += pieces.percent.width + textGap + pieces.detail.width
+        width += gap + activeDotSize + inactiveDotSize + dotGap + 1 // 1pt so the last dot is not clipped
 
         let image = NSImage(size: NSSize(width: ceil(width), height: height), flipped: false) { rect in
             var x: CGFloat = 0
@@ -61,18 +59,19 @@ enum StatusItemRenderer {
             }
             x += barSize.width + gap
 
-            // Percent (or window label while hovered), right-aligned in a fixed slot, then detail.
-            slotText.draw(at: NSPoint(x: x + slotWidth - slotText.width, y: midY - slotText.height / 2))
-            x += slotWidth + textGap
+            // Percent and detail text.
+            pieces.percent.draw(at: NSPoint(x: x, y: midY - pieces.percent.height / 2))
+            x += pieces.percent.width + textGap
             pieces.detail.draw(at: NSPoint(x: x, y: midY - pieces.detail.height / 2))
             x += pieces.detail.width + gap
 
-            // Window dots: left = 5h, right = 7d.
-            for (i, window) in UsageWindow.allCases.enumerated() {
+            // Window dots: left = 5h, right = 7d. Active one is bigger.
+            for window in UsageWindow.allCases {
                 let active = window == pieces.activeWindow
+                let size = active ? activeDotSize : inactiveDotSize
                 (active ? Palette.foreground : Palette.inactiveDot).setFill()
-                let dot = NSRect(x: x + CGFloat(i) * (dotSize + dotGap), y: midY - dotSize / 2, width: dotSize, height: dotSize)
-                NSBezierPath(ovalIn: dot).fill()
+                NSBezierPath(ovalIn: NSRect(x: x, y: midY - size / 2, width: size, height: size)).fill()
+                x += size + dotGap
             }
             return true
         }
@@ -85,7 +84,6 @@ enum StatusItemRenderer {
         let barColor: NSColor
         let percent: NSAttributedString
         let detail: NSAttributedString
-        let windowLabel: NSAttributedString
         let activeWindow: UsageWindow
     }
 
@@ -95,13 +93,11 @@ enum StatusItemRenderer {
             return Pieces(fill: 0, barColor: Palette.foreground,
                           percent: text("—", Palette.foreground),
                           detail: text("· loading", Palette.secondary),
-                          windowLabel: text(window.label, Palette.foreground),
                           activeWindow: window)
         case .error(_, let window):
             return Pieces(fill: 0, barColor: Palette.foreground,
                           percent: text("—", Palette.foreground),
                           detail: text("· offline", Palette.secondary),
-                          windowLabel: text(window.label, Palette.foreground),
                           activeWindow: window)
         case .usage(let limit, let window, let now):
             let remaining = limit.resetsAtOptional.map { UsageFormatting.remaining(until: $0, now: now, window: window) } ?? "?"
@@ -109,7 +105,6 @@ enum StatusItemRenderer {
                           barColor: Palette.bar(for: limit.severity),
                           percent: text(UsageFormatting.percentText(limit.utilization), Palette.percent(for: limit.severity)),
                           detail: text("· \(remaining)", Palette.secondary),
-                          windowLabel: text(window.label, Palette.foreground),
                           activeWindow: window)
         }
     }
