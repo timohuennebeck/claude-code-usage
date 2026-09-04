@@ -16,7 +16,7 @@ enum StatusItemRenderer {
     private static let logoSize: CGFloat = 13
     private static let barSize = CGSize(width: 36, height: 4)
     private static let dotSize: CGFloat = 4
-    private static let activeDotWidth: CGFloat = 10
+    private static let activeDotWidth: CGFloat = 8
     private static let dotGap: CGFloat = 3
     private static let gap: CGFloat = 7
     private static let textGap: CGFloat = 4
