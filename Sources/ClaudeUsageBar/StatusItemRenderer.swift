@@ -11,12 +11,12 @@ enum StatusItemState {
 
 enum StatusItemRenderer {
     // Layout in points, from the design (logo 13, bar 36×4, 12pt medium text).
-    // Window dots: the active one is larger and full-strength so it reads at a glance.
+    // Window indicator, page-control style: the active window is a short pill, the other a dot.
     private static let height: CGFloat = 22
     private static let logoSize: CGFloat = 13
     private static let barSize = CGSize(width: 36, height: 4)
-    private static let activeDotSize: CGFloat = 6
-    private static let inactiveDotSize: CGFloat = 4
+    private static let dotSize: CGFloat = 4
+    private static let activeDotWidth: CGFloat = 10
     private static let dotGap: CGFloat = 3
     private static let gap: CGFloat = 7
     private static let textGap: CGFloat = 4
@@ -32,7 +32,7 @@ enum StatusItemRenderer {
         let pieces = pieces(for: state)
         var width: CGFloat = logoSize + gap + barSize.width + gap
         width += pieces.percent.width + textGap + pieces.detail.width
-        width += gap + activeDotSize + inactiveDotSize + dotGap + 1 // 1pt so the last dot is not clipped
+        width += gap + activeDotWidth + dotSize + dotGap + 1 // 1pt so the last dot is not clipped
 
         let image = NSImage(size: NSSize(width: ceil(width), height: height), flipped: false) { rect in
             var x: CGFloat = 0
@@ -65,13 +65,14 @@ enum StatusItemRenderer {
             pieces.detail.draw(at: NSPoint(x: x, y: midY - pieces.detail.height / 2))
             x += pieces.detail.width + gap
 
-            // Window dots: left = 5h, right = 7d. Active one is bigger.
+            // Window indicator: left = 5h, right = 7d. Active one is a pill.
             for window in UsageWindow.allCases {
                 let active = window == pieces.activeWindow
-                let size = active ? activeDotSize : inactiveDotSize
+                let w = active ? activeDotWidth : dotSize
                 (active ? Palette.foreground : Palette.inactiveDot).setFill()
-                NSBezierPath(ovalIn: NSRect(x: x, y: midY - size / 2, width: size, height: size)).fill()
-                x += size + dotGap
+                let rect = NSRect(x: x, y: midY - dotSize / 2, width: w, height: dotSize)
+                NSBezierPath(roundedRect: rect, xRadius: dotSize / 2, yRadius: dotSize / 2).fill()
+                x += w + dotGap
             }
             return true
         }
