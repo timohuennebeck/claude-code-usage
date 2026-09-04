@@ -5,7 +5,7 @@ A macOS menu bar item showing how much of your Claude Code rate limit is used an
 - Bar and percent turn amber at 60% and red at 85%.
 - Two dots show which window is displayed: left is 5h, right is 7d, and the active one is stretched into a pill. **Left click** flips between them.
 - **Right click** shows both windows with reset times, Refresh, and Quit. plus the weekly per-model usage.
-- Refreshes every 3 minutes and after wake. The usage API rate-limits harder than that, so on HTTP 429 it backs off up to 30 minutes. The item dims when the last successful refresh is over 10 minutes old, and the right-click menu shows the error and last update time.
+- Refreshes every 5 minutes and after wake. The usage API rate-limits harder than that, so on HTTP 429 it backs off up to 30 minutes. The item dims when the last successful refresh is over 15 minutes old, and the right-click menu shows the error and last update time.
 
 It reads the OAuth session Claude Code already stores in the macOS Keychain (`Claude Code-credentials`), falling back to `~/.claude/.credentials.json`. Nothing is written; if the session has expired, run `claude` once to sign in again.
 

@@ -3,28 +3,27 @@ import XCTest
 
 final class RefreshPolicyTests: XCTestCase {
     func testNoFailuresUsesBaseInterval() {
-        XCTAssertEqual(RefreshPolicy.nextDelay(consecutiveRateLimits: 0), 180)
+        XCTAssertEqual(RefreshPolicy.nextDelay(consecutiveRateLimits: 0), 300)
     }
 
     func testBacksOffExponentiallyAndCaps() {
-        XCTAssertEqual(RefreshPolicy.nextDelay(consecutiveRateLimits: 1), 360)
-        XCTAssertEqual(RefreshPolicy.nextDelay(consecutiveRateLimits: 2), 720)
-        XCTAssertEqual(RefreshPolicy.nextDelay(consecutiveRateLimits: 3), 1440)
-        XCTAssertEqual(RefreshPolicy.nextDelay(consecutiveRateLimits: 4), 1800)
+        XCTAssertEqual(RefreshPolicy.nextDelay(consecutiveRateLimits: 1), 600)
+        XCTAssertEqual(RefreshPolicy.nextDelay(consecutiveRateLimits: 2), 1200)
+        XCTAssertEqual(RefreshPolicy.nextDelay(consecutiveRateLimits: 3), 1800)
         XCTAssertEqual(RefreshPolicy.nextDelay(consecutiveRateLimits: 10), 1800)
     }
 
     func testRetryAfterWinsWhenUsefulButIsClamped() {
-        XCTAssertEqual(RefreshPolicy.nextDelay(consecutiveRateLimits: 5, retryAfter: 300), 300)
-        XCTAssertEqual(RefreshPolicy.nextDelay(consecutiveRateLimits: 0, retryAfter: 30), 180)
+        XCTAssertEqual(RefreshPolicy.nextDelay(consecutiveRateLimits: 5, retryAfter: 400), 400)
+        XCTAssertEqual(RefreshPolicy.nextDelay(consecutiveRateLimits: 0, retryAfter: 30), 300)
         XCTAssertEqual(RefreshPolicy.nextDelay(consecutiveRateLimits: 0, retryAfter: 9999), 1800)
-        XCTAssertEqual(RefreshPolicy.nextDelay(consecutiveRateLimits: 1, retryAfter: 0), 360)
+        XCTAssertEqual(RefreshPolicy.nextDelay(consecutiveRateLimits: 1, retryAfter: 0), 600)
     }
 
     func testStaleness() {
         let t = Date(timeIntervalSince1970: 1_000_000)
-        XCTAssertFalse(RefreshPolicy.isStale(fetchedAt: t, now: t.addingTimeInterval(599)))
-        XCTAssertTrue(RefreshPolicy.isStale(fetchedAt: t, now: t.addingTimeInterval(601)))
+        XCTAssertFalse(RefreshPolicy.isStale(fetchedAt: t, now: t.addingTimeInterval(899)))
+        XCTAssertTrue(RefreshPolicy.isStale(fetchedAt: t, now: t.addingTimeInterval(901)))
     }
 
     func testSnapshotRoundTripsThroughJSON() throws {
