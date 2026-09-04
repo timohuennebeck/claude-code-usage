@@ -43,11 +43,15 @@ if let i = CommandLine.arguments.firstIndex(of: "--render"), i + 1 < CommandLine
     let dir = URL(fileURLWithPath: CommandLine.arguments[i + 1])
     try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
     let now = Date()
+    func snap(_ five: Double, _ fiveIn: TimeInterval, _ seven: Double = 66, _ sevenIn: TimeInterval = 4 * 86400 + 4 * 3600) -> UsageSnapshot {
+        UsageSnapshot(fiveHour: UsageLimit(utilization: five, resetsAt: now.addingTimeInterval(fiveIn)),
+                      sevenDay: UsageLimit(utilization: seven, resetsAt: now.addingTimeInterval(sevenIn)), fetchedAt: now)
+    }
     let states: [(String, StatusItemState)] = [
-        ("5h-19", .usage(UsageLimit(utilization: 19, resetsAt: now.addingTimeInterval(2 * 3600 + 41 * 60)), window: .fiveHour, now: now)),
-        ("5h-68", .usage(UsageLimit(utilization: 68, resetsAt: now.addingTimeInterval(1 * 3600 + 12 * 60)), window: .fiveHour, now: now)),
-        ("5h-91", .usage(UsageLimit(utilization: 91, resetsAt: now.addingTimeInterval(24 * 60)), window: .fiveHour, now: now)),
-        ("7d-66", .usage(UsageLimit(utilization: 66, resetsAt: now.addingTimeInterval(4 * 86400 + 4 * 3600)), window: .sevenDay, now: now)),
+        ("5h-19", .usage(snap(19, 2 * 3600 + 41 * 60), window: .fiveHour, now: now)),
+        ("5h-68", .usage(snap(68, 1 * 3600 + 12 * 60), window: .fiveHour, now: now)),
+        ("5h-91", .usage(snap(91, 24 * 60), window: .fiveHour, now: now)),
+        ("7d-66", .usage(snap(19, 2 * 3600 + 41 * 60), window: .sevenDay, now: now)),
         ("loading", .loading(window: .fiveHour)),
         ("error", .error("offline", window: .fiveHour)),
     ]

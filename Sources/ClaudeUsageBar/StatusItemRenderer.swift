@@ -5,7 +5,7 @@ import ClaudeUsageCore
 /// clicks and appearance changes for us.
 enum StatusItemState {
     case loading(window: UsageWindow)
-    case usage(UsageLimit, window: UsageWindow, now: Date)
+    case usage(UsageSnapshot, window: UsageWindow, now: Date)
     case error(String, window: UsageWindow)
 }
 
@@ -30,8 +30,10 @@ enum StatusItemRenderer {
 
     static func render(_ state: StatusItemState) -> NSImage {
         let pieces = pieces(for: state)
+        // Slots are sized to the wider of the two windows so flipping 5h/7d never shifts the layout.
+        let (percentSlot, detailSlot) = slotWidths(for: state, current: pieces)
         var width: CGFloat = logoSize + gap + barSize.width + gap
-        width += pieces.percent.width + textGap + pieces.detail.width
+        width += percentSlot + textGap + detailSlot
         width += gap + activeDotWidth + dotSize + dotGap + 1 // 1pt so the last dot is not clipped
 
         let image = NSImage(size: NSSize(width: ceil(width), height: height), flipped: false) { rect in
@@ -59,11 +61,11 @@ enum StatusItemRenderer {
             }
             x += barSize.width + gap
 
-            // Percent and detail text.
-            pieces.percent.draw(at: NSPoint(x: x, y: midY - pieces.percent.height / 2))
-            x += pieces.percent.width + textGap
+            // Percent right-aligned in its slot, detail left-aligned in its slot.
+            pieces.percent.draw(at: NSPoint(x: x + percentSlot - pieces.percent.width, y: midY - pieces.percent.height / 2))
+            x += percentSlot + textGap
             pieces.detail.draw(at: NSPoint(x: x, y: midY - pieces.detail.height / 2))
-            x += pieces.detail.width + gap
+            x += detailSlot + gap
 
             // Window indicator: left = 5h, right = 7d. Active one is a pill.
             for window in UsageWindow.allCases {
@@ -88,6 +90,20 @@ enum StatusItemRenderer {
         let activeWindow: UsageWindow
     }
 
+    private static func slotWidths(for state: StatusItemState, current: Pieces) -> (CGFloat, CGFloat) {
+        guard case .usage(let snapshot, _, let now) = state else {
+            return (current.percent.width, current.detail.width)
+        }
+        var percent = current.percent.width
+        var detail = current.detail.width
+        for w in UsageWindow.allCases {
+            let other = pieces(for: .usage(snapshot, window: w, now: now))
+            percent = max(percent, other.percent.width)
+            detail = max(detail, other.detail.width)
+        }
+        return (percent, detail)
+    }
+
     private static func pieces(for state: StatusItemState) -> Pieces {
         switch state {
         case .loading(let window):
@@ -100,7 +116,8 @@ enum StatusItemRenderer {
                           percent: text("—", Palette.foreground),
                           detail: text("· offline", Palette.secondary),
                           activeWindow: window)
-        case .usage(let limit, let window, let now):
+        case .usage(let snapshot, let window, let now):
+            let limit = snapshot.limit(for: window)
             let remaining = limit.resetsAtOptional.map { UsageFormatting.remaining(until: $0, now: now, window: window) } ?? "?"
             return Pieces(fill: CGFloat(limit.utilization / 100),
                           barColor: Palette.bar(for: limit.severity),

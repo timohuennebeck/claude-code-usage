@@ -52,7 +52,7 @@ final class StatusController: NSObject {
     private func redraw() {
         let state: StatusItemState
         if let snapshot {
-            state = .usage(snapshot.limit(for: window), window: window, now: Date())
+            state = .usage(snapshot, window: window, now: Date())
         } else if let lastError {
             state = .error(lastError, window: window)
         } else {
