@@ -1,5 +1,6 @@
 import AppKit
 import ClaudeUsageCore
+import Network
 
 /// Owns the NSStatusItem: polls usage, redraws the item, flips the window on click,
 /// and shows a details menu on right click.
@@ -17,6 +18,9 @@ final class StatusController: NSObject {
     private var plan: String?
     private var lastError: String?
     private var consecutiveRateLimits = 0
+    private var consecutiveFailures = 0
+    private let pathMonitor = NWPathMonitor()
+    private var networkWasReachable = true
     private var fetchTimer: Timer?
     private var tickTimer: Timer?
 
@@ -35,6 +39,16 @@ final class StatusController: NSObject {
         // Countdown and staleness are computed locally, so redraw every minute regardless of fetches.
         tickTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in self?.redraw() }
         tickTimer?.tolerance = 5
+        // At login the app usually starts before the network is up. Refresh as soon as it appears.
+        pathMonitor.pathUpdateHandler = { [weak self] path in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                let reachable = path.status == .satisfied
+                if reachable && !self.networkWasReachable { self.refresh() }
+                self.networkWasReachable = reachable
+            }
+        }
+        pathMonitor.start(queue: DispatchQueue(label: "network-path"))
         refresh()
     }
 
@@ -51,14 +65,17 @@ final class StatusController: NSObject {
                 snapshot = fresh
                 lastError = nil
                 consecutiveRateLimits = 0
+                consecutiveFailures = 0
                 if let data = try? JSONEncoder().encode(fresh) {
                     UserDefaults.standard.set(data, forKey: Self.cacheKey)
                 }
             } catch let UsageClientError.rateLimited(after) {
                 consecutiveRateLimits += 1
+                consecutiveFailures = 0
                 retryAfter = after
                 lastError = UsageClientError.rateLimited(retryAfter: after).localizedDescription
             } catch {
+                consecutiveFailures += 1
                 lastError = error.localizedDescription
             }
             redraw()
@@ -67,7 +84,9 @@ final class StatusController: NSObject {
     }
 
     private func scheduleNextFetch(retryAfter: TimeInterval?) {
-        let delay = RefreshPolicy.nextDelay(consecutiveRateLimits: consecutiveRateLimits, retryAfter: retryAfter)
+        let delay = consecutiveFailures > 0
+            ? RefreshPolicy.retryDelay(consecutiveFailures: consecutiveFailures)
+            : RefreshPolicy.nextDelay(consecutiveRateLimits: consecutiveRateLimits, retryAfter: retryAfter)
         fetchTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in self?.refresh() }
         fetchTimer?.tolerance = 10
     }

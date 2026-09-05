@@ -19,6 +19,14 @@ public enum RefreshPolicy {
         return min(backoff, maxInterval)
     }
 
+    /// Delay before retrying after a non-rate-limit failure (no network at login, keychain
+    /// not ready, transient 5xx). Starts quick and backs off to the normal interval so a
+    /// stale item recovers within seconds once the network is up, not five minutes later.
+    public static func retryDelay(consecutiveFailures: Int) -> TimeInterval {
+        guard consecutiveFailures > 0 else { return baseInterval }
+        return min(15 * pow(2, Double(consecutiveFailures - 1)), baseInterval)
+    }
+
     public static func isStale(fetchedAt: Date, now: Date = Date()) -> Bool {
         now.timeIntervalSince(fetchedAt) > staleAfter
     }

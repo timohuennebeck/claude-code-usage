@@ -20,6 +20,17 @@ final class RefreshPolicyTests: XCTestCase {
         XCTAssertEqual(RefreshPolicy.nextDelay(consecutiveRateLimits: 1, retryAfter: 0), 600)
     }
 
+    func testTransientFailuresRetryQuicklyThenSettleAtBase() {
+        XCTAssertEqual(RefreshPolicy.retryDelay(consecutiveFailures: 1), 15)
+        XCTAssertEqual(RefreshPolicy.retryDelay(consecutiveFailures: 2), 30)
+        XCTAssertEqual(RefreshPolicy.retryDelay(consecutiveFailures: 3), 60)
+        XCTAssertEqual(RefreshPolicy.retryDelay(consecutiveFailures: 4), 120)
+        XCTAssertEqual(RefreshPolicy.retryDelay(consecutiveFailures: 5), 240)
+        XCTAssertEqual(RefreshPolicy.retryDelay(consecutiveFailures: 6), 300)
+        XCTAssertEqual(RefreshPolicy.retryDelay(consecutiveFailures: 20), 300)
+        XCTAssertEqual(RefreshPolicy.retryDelay(consecutiveFailures: 0), RefreshPolicy.baseInterval)
+    }
+
     func testStaleness() {
         let t = Date(timeIntervalSince1970: 1_000_000)
         XCTAssertFalse(RefreshPolicy.isStale(fetchedAt: t, now: t.addingTimeInterval(899)))
